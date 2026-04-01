@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, User, Calendar, MapPin, Target, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, User, Calendar, MapPin, Target, ShieldAlert, Image, Clock, FileText, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ManagerReviewScreen() {
@@ -11,6 +11,9 @@ export default function ManagerReviewScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [managerNotes, setManagerNotes] = useState('');
+  const [selectedDecision, setSelectedDecision] = useState('');
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   useEffect(() => {
     fetchIncidentDetail();
@@ -45,21 +48,39 @@ export default function ManagerReviewScreen() {
   }
 
   async function handleDecision(decision) {
-    // decision: 'closed' | 'in_progress' (rejected back to investigator)
+    if (!selectedDecision && !decision) {
+      setErrorMsg('Please select a decision option');
+      return;
+    }
+    
     setSubmitting(true);
-    const { error } = await supabase
-      .from('incidents')
-      .update({
-        status: decision,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
+    const finalDecision = decision || selectedDecision;
+    
+    try {
+      const updateData = {
+        status: finalDecision === 'approve' ? 'closed' : 
+               finalDecision === 'return' ? 'under_investigation' : 
+               finalDecision === 'escalate' ? 'manager_review' : finalDecision,
+        manager_notes: managerNotes,
+        manager_decision: finalDecision,
+        updated_at: new Date().toISOString(),
+        closed_at: finalDecision === 'approve' ? new Date().toISOString() : null
+      };
 
-    setSubmitting(false);
-    if (error) {
-      setErrorMsg('Failed to update incident. ' + error.message);
-    } else {
-      navigate('/');
+      const { error } = await supabase
+        .from('incidents')
+        .update(updateData)
+        .eq('id', id);
+
+      if (error) {
+        setErrorMsg('Failed to update incident. ' + error.message);
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      setErrorMsg('Unexpected error: ' + err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -89,7 +110,14 @@ export default function ManagerReviewScreen() {
 
         <div style={{ marginBottom: '32px' }}>
           <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>REFERENCE NUMBER</p>
-          <h2 style={{ fontSize: '24px', fontFamily: 'monospace', color: 'var(--amber)' }}>{incident.reference_number}</h2>
+          <h2 style={{ fontSize: '24px', fontFamily: 'monospace', color: 'var(--amber)' }}>{incident.id}</h2>
+        </div>
+
+        <div style={{ marginBottom: '32px' }}>
+          <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>INCIDENT TYPE</p>
+          <span className={`badge ${incident.incident_type?.toLowerCase() || 'medium'}`} style={{ fontSize: '14px', padding: '6px 14px' }}>
+            {incident.incident_type || 'Unknown'}
+          </span>
         </div>
 
         <div style={{ marginBottom: '32px' }}>
@@ -97,6 +125,52 @@ export default function ManagerReviewScreen() {
           <span className={`badge ${incident.overall_risk?.toLowerCase() || 'medium'}`} style={{ fontSize: '14px', padding: '6px 14px' }}>
             {incident.overall_risk || 'Unrated'} Risk
           </span>
+        </div>
+
+        <div style={{ marginBottom: '32px' }}>
+          <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>REPORTED BY</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--blue-dim)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold' }}>
+              {incident.reporter?.full_name?.[0] || '?'}
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{incident.reporter?.full_name || 'Unknown'}</div>
+              <div className="text-sub" style={{ fontSize: '12px' }}>{incident.reporter?.job_title || 'Unknown'}</div>
+            </div>
+          </div>
+        </div>
+
+        {incident.investigator && (
+          <div style={{ marginBottom: '32px' }}>
+            <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>INVESTIGATED BY</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--amber-dim)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold' }}>
+                {incident.investigator.full_name?.[0] || '?'}
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{incident.investigator.full_name}</div>
+                <div className="text-sub" style={{ fontSize: '12px' }}>{incident.investigator.job_title}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginBottom: '32px' }}>
+          <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>TIMELINE</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={14} style={{ color: 'var(--sub)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--sub)' }}>
+                Reported: {incident.created_at ? format(new Date(incident.created_at), 'MMM dd, yyyy HH:mm') : 'Unknown'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={14} style={{ color: 'var(--sub)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--sub)' }}>
+                Updated: {incident.updated_at ? format(new Date(incident.updated_at), 'MMM dd, yyyy HH:mm') : 'Unknown'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {incident.status === 'manager_review' && (
@@ -174,39 +248,79 @@ export default function ManagerReviewScreen() {
                       <User size={16} />
                     </div>
                     <div>
-                      <p style={{ fontSize: '14px', fontWeight: '600' }}>{incident.reporter?.full_name}</p>
-                      <p className="text-sub" style={{ fontSize: '12px' }}>{incident.reporter?.job_title}</p>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{incident.reporter?.full_name || 'Unknown'}</div>
+                      <div className="text-sub" style={{ fontSize: '12px' }}>{incident.reporter?.job_title || 'Unknown'}</div>
                     </div>
                  </div>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
+                 <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>DESCRIPTION</p>
+                 <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text)' }}>
+                   {incident.description || 'No description provided'}
+                 </p>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
                 <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>LOCATION</p>
-                <p style={{ fontSize: '14px', lineHeight: '1.5' }}>
-                  <MapPin size={14} style={{ display: 'inline', color: 'var(--cyan)', marginRight: '4px', position: 'relative', top: '2px' }} />
-                  {incident.location_label || 'Location not provided'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MapPin size={14} style={{ color: 'var(--sub)' }} />
+                  <span style={{ fontSize: '14px', color: 'var(--text)' }}>
+                    {incident.location_label || 'No location specified'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>WORK ACTIVITY</p>
+                <p style={{ fontSize: '14px', color: 'var(--text)' }}>
+                  {incident.work_activity || 'Not specified'}
                 </p>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
-                <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>INCIDENT DESCRIPTION</p>
-                <div style={{ backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '8px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text)' }}>
-                  {incident.description}
+                <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>IMMEDIATE ACTION</p>
+                <div style={{ backgroundColor: 'var(--green-dim)', border: '1px solid var(--green)', borderRadius: '8px', padding: '12px' }}>
+                  <p style={{ fontSize: '14px', color: 'var(--green)' }}>
+                    {incident.immediate_action || 'No immediate action recorded'}
+                  </p>
                 </div>
               </div>
 
-              {incident.witnesses && (
+              {incident.photo_url && (
                 <div style={{ marginBottom: '24px' }}>
-                  <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>WITNESSES</p>
-                  <p style={{ fontSize: '14px' }}>{incident.witnesses}</p>
+                  <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>PHOTO EVIDENCE</p>
+                  <div 
+                    style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--surface)', cursor: 'pointer', position: 'relative' }}
+                    onClick={() => setIsPhotoModalOpen(true)}
+                  >
+                    <img 
+                      src={incident.photo_url} 
+                      alt="Incident photo" 
+                      style={{ width: '100%', height: '200px', objectFit: 'cover', display: 'block' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextElementSibling.style.display = 'flex';
+                      }}
+                    />
+                    <div style={{ position: 'absolute', bottom: '10px', right: '10px', backgroundColor: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                       View Full
+                    </div>
+                    <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--sub)', fontSize: '14px' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <Image size={24} style={{ marginBottom: '8px' }} />
+                        <p>Photo unavailable</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
               <div>
-                <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>IMMEDIATE ACTION TAKEN</p>
-                <div style={{ borderLeft: '3px solid var(--amber)', paddingLeft: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--sub)' }}>
-                  {incident.immediate_action || 'None reported.'}
-                </div>
+                <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>WITNESSES</p>
+                <p style={{ fontSize: '14px', color: 'var(--text)' }}>
+                  {incident.witnesses || 'No witnesses recorded'}
+                </p>
               </div>
             </div>
           </div>
@@ -219,18 +333,20 @@ export default function ManagerReviewScreen() {
 
             <div className="glass-panel" style={{ padding: '32px', backgroundColor: 'var(--panel)', borderColor: 'var(--blue-dim)' }}>
               
-              <div style={{ marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-                 <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>INVESTIGATED BY</p>
-                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              {incident.investigator && (
+                <div style={{ marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                  <p className="text-xs text-sub" style={{ marginBottom: '6px' }}>INVESTIGATED BY</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                       <User size={16} />
                     </div>
                     <div>
-                      <p style={{ fontSize: '14px', fontWeight: '600' }}>{incident.investigator?.full_name}</p>
-                      <p className="text-sub" style={{ fontSize: '12px' }}>{incident.investigator?.job_title}</p>
+                      <p style={{ fontSize: '14px', fontWeight: '600' }}>{incident.investigator.full_name}</p>
+                      <p className="text-sub" style={{ fontSize: '12px' }}>{incident.investigator.job_title}</p>
                     </div>
-                 </div>
-              </div>
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginBottom: '32px' }}>
                 <p className="text-xs text-sub" style={{ marginBottom: '12px' }}>4-PILLAR RISK ASSESSMENT</p>
@@ -250,46 +366,159 @@ export default function ManagerReviewScreen() {
               <div style={{ marginBottom: '32px' }}>
                 <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>ROOT CAUSE ANALYSIS</p>
                 <div style={{ backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '8px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--amber)', fontWeight: '700', marginBottom: '8px' }}>{incident.root_cause_category}</p>
-                  <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text)' }}>{incident.root_cause_detail}</p>
+                  <p style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '8px' }}>
+                    {incident.root_cause_category || 'No root cause category specified'}
+                  </p>
+                  <p className="text-sub" style={{ fontSize: '13px', lineHeight: '1.5' }}>
+                    {incident.root_cause_detail || 'No detailed root cause analysis provided'}
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <p className="text-xs text-sub" style={{ marginBottom: '12px', color: 'var(--cyan)' }}>CORRECTIVE & PREVENTIVE ACTION (CAPA)</p>
-                <div style={{ border: '1px solid var(--cyan)', backgroundColor: 'rgba(6, 182, 212, 0.05)', padding: '20px', borderRadius: '12px' }}>
-                  <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text)', marginBottom: '16px' }}>
-                    {incident.capa_action}
+              <div style={{ marginBottom: '32px' }}>
+                <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>CORRECTIVE ACTION (CAPA)</p>
+                <div style={{ backgroundColor: 'var(--blue-dim)', border: '1px solid var(--blue-dim)', padding: '16px', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '12px' }}>
+                    {incident.capa_action || 'No corrective action specified'}
                   </p>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(6, 182, 212, 0.2)', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
                     <div>
-                      <p className="text-xs" style={{ color: 'var(--cyan)', marginBottom: '4px' }}>ASSIGNED TO</p>
-                      <p style={{ fontSize: '13px', fontWeight: '600' }}>
-                        {incident.capa_owner_profile?.full_name || 'Unknown'} <span style={{ fontWeight: '400', color: 'var(--sub)' }}>({incident.capa_owner_profile?.job_title || 'Staff'})</span>
-                      </p>
+                      <span className="text-sub">Owner:</span> 
+                      <span style={{ marginLeft: '4px', color: 'var(--text)' }}>
+                        {incident.capa_owner_profile?.full_name || incident.capa_owner || 'Not assigned'}
+                      </span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p className="text-xs" style={{ color: 'var(--red)', marginBottom: '4px' }}>DUE DATE</p>
-                      <p style={{ fontSize: '13px', fontWeight: '600' }}>{incident.capa_due_date || 'N/A'}</p>
+                    <div>
+                      <span className="text-sub">Due:</span> 
+                      <span style={{ marginLeft: '4px', color: 'var(--text)' }}>
+                        {incident.capa_due_date ? new Date(incident.capa_due_date).toLocaleDateString() : 'Not set'}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-              
-              {incident.investigator_notes && (
-                 <div style={{ marginTop: '32px' }}>
-                    <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>INVESTIGATOR NOTES</p>
-                    <p style={{ fontSize: '13px', color: 'var(--sub)', fontStyle: 'italic', lineHeight: '1.5' }}>
-                      "{incident.investigator_notes}"
-                    </p>
-                 </div>
-              )}
 
+              {incident.investigator_notes && (
+                <div>
+                  <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>INVESTIGATOR NOTES</p>
+                  <div style={{ backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '8px' }}>
+                    <p className="text-sub" style={{ fontSize: '13px', lineHeight: '1.5' }}>
+                      {incident.investigator_notes}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Manager Decision Section */}
+        {incident.status === 'manager_review' && (
+          <div style={{ marginTop: '40px', paddingTop: '40px', borderTop: '1px solid var(--border)' }}>
+            <h2 style={{ fontSize: '16px', color: 'var(--text)', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Settings size={18} /> Manager Review & Decision
+            </h2>
+            
+            <div className="glass-panel" style={{ padding: '32px' }}>
+              <div style={{ marginBottom: '32px' }}>
+                <p className="text-xs text-sub" style={{ marginBottom: '12px' }}>DECISION OPTIONS</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                  <button 
+                    className={`btn ${selectedDecision === 'approve' ? 'btn-success' : 'btn-ghost'}`}
+                    style={{ 
+                      flexDirection: 'column', 
+                      padding: '20px', 
+                      border: selectedDecision === 'approve' ? '2px solid var(--green)' : '1px solid var(--border)',
+                      backgroundColor: selectedDecision === 'approve' ? 'var(--green-dim)' : 'var(--surface)'
+                    }}
+                    onClick={() => setSelectedDecision('approve')}
+                  >
+                    <CheckCircle2 size={24} style={{ marginBottom: '8px', color: 'var(--green)' }} />
+                    <span style={{ fontSize: '14px', fontWeight: '600' }}>Approve & Close</span>
+                    <span className="text-sub" style={{ fontSize: '11px', marginTop: '4px' }}>CAPA adequate - resolve incident</span>
+                  </button>
+
+                  <button 
+                    className={`btn ${selectedDecision === 'return' ? 'btn-warning' : 'btn-ghost'}`}
+                    style={{ 
+                      flexDirection: 'column', 
+                      padding: '20px', 
+                      border: selectedDecision === 'return' ? '2px solid var(--amber)' : '1px solid var(--border)',
+                      backgroundColor: selectedDecision === 'return' ? 'var(--amber-dim)' : 'var(--surface)'
+                    }}
+                    onClick={() => setSelectedDecision('return')}
+                  >
+                    <ArrowLeft size={24} style={{ marginBottom: '8px', color: 'var(--amber)' }} />
+                    <span style={{ fontSize: '14px', fontWeight: '600' }}>Return</span>
+                    <span className="text-sub" style={{ fontSize: '11px', marginTop: '4px' }}>Send back for more investigation</span>
+                  </button>
+
+                  <button 
+                    className={`btn ${selectedDecision === 'escalate' ? 'btn-danger' : 'btn-ghost'}`}
+                    style={{ 
+                      flexDirection: 'column', 
+                      padding: '20px', 
+                      border: selectedDecision === 'escalate' ? '2px solid var(--red)' : '1px solid var(--border)',
+                      backgroundColor: selectedDecision === 'escalate' ? 'var(--red-dim)' : 'var(--surface)'
+                    }}
+                    onClick={() => setSelectedDecision('escalate')}
+                  >
+                    <AlertTriangle size={24} style={{ marginBottom: '8px', color: 'var(--red)' }} />
+                    <span style={{ fontSize: '14px', fontWeight: '600' }}>Escalate</span>
+                    <span className="text-sub" style={{ fontSize: '11px', marginTop: '4px' }}>Requires executive review</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '32px' }}>
+                <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>MANAGER NOTES</p>
+                <textarea 
+                  className="input" 
+                  style={{ minHeight: '100px', resize: 'vertical' }}
+                  placeholder="Add your review notes, rationale for decision, or additional requirements..."
+                  value={managerNotes}
+                  onChange={e => setManagerNotes(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <button 
+                  className="btn btn-success" 
+                  onClick={() => handleDecision()}
+                  disabled={!selectedDecision || submitting}
+                  style={{ flex: 1 }}
+                >
+                  {submitting ? 'Processing...' : `Submit Decision - ${selectedDecision === 'approve' ? 'Close Incident' : selectedDecision === 'return' ? 'Return to Investigator' : 'Escalate'}`}
+                </button>
+                <button className="btn btn-ghost" onClick={() => navigate('/')}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Full Screen Photo Modal */}
+      {isPhotoModalOpen && incident?.photo_url && (
+        <div 
+          onClick={() => setIsPhotoModalOpen(false)}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+        >
+          <img 
+            src={incident.photo_url} 
+            alt="Full size evidence" 
+            style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} 
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button 
+            style={{ position: 'absolute', top: '20px', right: '20px', color: '#fff', backgroundColor: 'var(--surface)', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+            onClick={() => setIsPhotoModalOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 }
