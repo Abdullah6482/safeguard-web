@@ -6,6 +6,8 @@ import './index.css';
 import LoginScreen from './screens/auth/LoginScreen';
 import ManagerDashboard from './screens/manager/ManagerDashboard';
 import ManagerReviewScreen from './screens/manager/ManagerReviewScreen';
+import SidebarLayout from './screens/manager/SidebarLayout';
+import ComingSoon from './screens/manager/ComingSoon';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -38,9 +40,20 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
+          {/* Standalone screens — no sidebar */}
           <Route path="/login" element={<LoginScreen />} />
-          <Route path="/" element={<ManagerDashboard />} />
           <Route path="/review/:id" element={<ManagerReviewScreen />} />
+
+          {/* Manager app shell — sidebar + topbar */}
+          <Route element={<SidebarLayout />}>
+            <Route path="/" element={<ManagerDashboard />} />
+            <Route path="/incidents" element={<ComingSoon />} />
+            <Route path="/analytics" element={<ComingSoon />} />
+            <Route path="/team" element={<ComingSoon />} />
+            <Route path="/policies" element={<ComingSoon />} />
+            <Route path="/settings" element={<ComingSoon />} />
+          </Route>
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>

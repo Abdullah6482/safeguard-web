@@ -173,31 +173,7 @@ export default function ManagerReviewScreen() {
           </div>
         </div>
 
-        {incident.status === 'manager_review' && (
-          <div className="glass-panel" style={{ padding: '24px', marginTop: 'auto', backgroundColor: 'var(--surface)', border: '1px solid var(--amber-dim)' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '16px', color: 'var(--text)' }}>Manager Decision</h3>
-            <p className="text-sub" style={{ fontSize: '12px', marginBottom: '20px', lineHeight: '1.5' }}>
-              Review the detailed Phase A and Phase B reports. If the CAPA is adequate, approve and close the incident.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button 
-                className="btn btn-success" 
-                onClick={() => handleDecision('closed')} 
-                disabled={submitting}
-              >
-                <CheckCircle2 size={16} /> Approve & Close
-              </button>
-              <button 
-                className="btn btn-ghost" 
-                style={{ color: 'var(--red)', borderColor: 'var(--border)' }}
-                onClick={() => handleDecision('in_progress')} 
-                disabled={submitting}
-              >
-                <XCircle size={16} /> Reject (Needs Work)
-              </button>
-            </div>
-          </div>
-        )}
+
         
         {incident.status === 'closed' && (
           <div className="glass-panel" style={{ padding: '24px', marginTop: 'auto', backgroundColor: 'var(--green-dim)', border: '1px solid var(--green)' }}>
