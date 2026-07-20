@@ -1,16 +1,48 @@
-# React + Vite
+# 🛡️ SafeGuard Web Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Enterprise Health, Safety, and Environment (HSE) Incident Investigation & Analytics Portal**
 
-Currently, two official plugins are available:
+[![CI](https://github.com/Abdullah6482/safeguard-web/actions/workflows/ci.yml/badge.svg)](https://github.com/Abdullah6482/safeguard-web/actions/workflows/ci.yml)
+[![React](https://img.shields.io/badge/React-v19.2-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-v8.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+[![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🎯 Purpose & Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The **SafeGuard Web Portal** provides health and safety managers, compliance officers, and executive leadership with complete oversight over workplace incidents, hazards, and environmental events reported from field mobile devices.
 
-## Expanding the ESLint configuration
+### ✨ Key Capabilities
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Executive Analytics Dashboard**: Real-time KPI summaries, monthly incident trend area charts, and severity breakdowns powered by Recharts.
+- **Interactive 5x5 Risk Heatmap**: Real-time ISO 31000 probability x severity matrix filtering incidents by risk cell.
+- **4 Pillars Evaluation**: Comprehensive impact analysis across **People**, **Assets**, **Environment**, and **Reputation**.
+- **Root Cause Analysis (5-Whys)**: Structured investigation module discovering systemic organizational failures.
+- **CAPA Action Tracking Kanban**: Corrective & Preventive Action board with due-date alerts and progress indicators.
+- **Evidence Photo Lightbox**: High-resolution image viewer with 90° rotation and zoom tools.
+- **Custom CSV & PDF Exports**: Configurable audit data exports with printable executive summary templates.
+- **Multi-Facility Benchmarking**: Cross-site safety comparisons and Days Without Lost Time Incident (LTI) counters.
+
+---
+
+## 🚀 Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+
+# Build production bundle
+npm run build
+```
+
+---
+
+## 📄 License
+
+Distributed under the MIT License.
