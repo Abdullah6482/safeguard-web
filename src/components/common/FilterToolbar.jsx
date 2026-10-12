@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FilterToolbar({ currentStatus, onStatusChange, currentCategory, onCategoryChange }) {
+export default function FilterToolbar({ currentStatus, onStatusChange }) {
   const statuses = [
     { id: 'all', label: 'All Statuses' },
     { id: 'open', label: 'Open' },

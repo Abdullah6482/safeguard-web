@@ -9,7 +9,7 @@ export function playCriticalIncidentTone() {
     gain.gain.setValueAtTime(0.2, ctx.currentTime);
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
-  } catch (_) {
+  } catch {
     // Ignore audio autoplay restrictions
   }
 }

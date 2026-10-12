@@ -1,13 +1,13 @@
 export const Roles = {
-  ADMIN: 'admin',
+  MANAGER: 'manager',
   INVESTIGATOR: 'investigator',
-  REVIEWER: 'reviewer',
+  REPORTER: 'reporter',
 };
 
 export const Permissions = {
-  [Roles.ADMIN]: ['create_report', 'edit_report', 'delete_report', 'manage_users', 'export_data'],
-  [Roles.INVESTIGATOR]: ['create_report', 'edit_report', 'close_capa', 'export_data'],
-  [Roles.REVIEWER]: ['create_report', 'read_reports'],
+  [Roles.MANAGER]: ['read_reports', 'manager_decision', 'manage_capa', 'export_data'],
+  [Roles.INVESTIGATOR]: ['read_reports', 'investigate_report', 'manage_capa'],
+  [Roles.REPORTER]: ['create_report', 'read_own_reports'],
 };
 
 export function hasPermission(role, permission) {

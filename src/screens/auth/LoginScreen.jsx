@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { ShieldCheck, Loader2 } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -10,6 +11,8 @@ export default function LoginScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   
   const navigate = useNavigate();
+  const { session, profile } = useAuth();
+  useEffect(() => { if (session && profile?.role === 'manager') navigate('/', { replace: true }); }, [navigate, profile, session]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,13 +36,13 @@ export default function LoginScreen() {
     }
 
     // Verify role
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', data.user.id)
       .single();
 
-    if (profile?.role !== 'manager') {
+    if (profileError || profile?.role !== 'manager') {
       await supabase.auth.signOut();
       setErrorMsg('Unauthorized: Only HSE Managers can access this portal.');
       setLoading(false);
@@ -79,7 +82,7 @@ export default function LoginScreen() {
             <input 
               type="email"
               className="input"
-              placeholder="saad.iftikhar@obs.com"
+              placeholder="manager@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}

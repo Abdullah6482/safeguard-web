@@ -3,44 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Folder, Hourglass, CheckSquare, Siren, Award, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { DEMO_INCIDENTS, DEMO_MODE, DEMO_SAFETY_POINTS } from '../../demo/demoData';
 
 export default function ManagerDashboard() {
   const [incidents, setIncidents] = useState([]);
   const [safetyPoints, setSafetyPoints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    checkSession();
-  }, []);
-
-  async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/login');
-      return;
-    }
-
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('full_name, role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (userData?.role !== 'manager') {
-      await supabase.auth.signOut();
-      navigate('/login');
-      return;
-    }
-
-    setProfile(userData);
     fetchData();
-  }
+  }, []);
 
   async function fetchData() {
     setLoading(true);
+    setErrorMsg('');
     try {
+      if (DEMO_MODE) {
+        setIncidents(DEMO_INCIDENTS);
+        setSafetyPoints(DEMO_SAFETY_POINTS);
+        return;
+      }
       // 1. Fetch Incidents
       const { data: incData, error: incError } = await supabase
         .from('incidents')
@@ -50,7 +34,8 @@ export default function ManagerDashboard() {
         `)
         .order('created_at', { ascending: false });
         
-      if (incData) setIncidents(incData);
+      if (incError) throw incError;
+      setIncidents(incData || []);
 
       // 2. Fetch Safety Points joined with profiles to get department
       // NOTE: RLS must allow this query for managers!
@@ -58,10 +43,12 @@ export default function ManagerDashboard() {
         .from('safety_points')
         .select(`points, user_id, profiles!user_id(department)`);
         
-      if (ptsData) setSafetyPoints(ptsData);
+      if (ptsError) throw ptsError;
+      setSafetyPoints(ptsData || []);
 
     } catch (err) {
       console.error('Fetch error:', err);
+      setErrorMsg(err.message || 'Unable to load dashboard data.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +56,8 @@ export default function ManagerDashboard() {
 
   // Derived Metrics
   const openCount = incidents.filter(i => ['reported', 'under_investigation'].includes(i.status)).length;
-  const pendingCount = incidents.filter(i => i.status === 'manager_review').length;
+  const pendingCount = incidents.filter(i => i.status === 'manager_review' && i.escalation_status !== 'open').length;
+  const escalatedCount = incidents.filter(i => i.escalation_status === 'open').length;
   
   // Closed this month
   const thisMonth = new Date().getMonth();
@@ -92,14 +80,6 @@ export default function ManagerDashboard() {
     deptPoints[dept] = (deptPoints[dept] || 0) + (row.points || 0);
   });
   
-  // Provide realistic fallback data for the UI if DB query falls flat due to missing RLS
-  if (Object.keys(deptPoints).length === 0 && incidents.length > 0) {
-    incidents.forEach(inc => {
-      const dept = inc.reporter?.department || 'Other';
-      deptPoints[dept] = (deptPoints[dept] || 0) + 150; // Mock 150 points per incident
-    });
-  }
-
   const sortedDepts = Object.entries(deptPoints).sort((a,b) => b[1] - a[1]);
   // Top highest points determines the max for the progress bar scaling
   const maxPoints = sortedDepts.length > 0 ? sortedDepts[0][1] : 100;
@@ -119,7 +99,7 @@ export default function ManagerDashboard() {
   const sortedDeptStats = Object.entries(deptStats).sort((a,b) => b[1].filed - a[1].filed);
 
   // Awaiting Manager Actions
-  const pendingActions = incidents.filter(i => i.status === 'manager_review');
+  const pendingActions = incidents.filter(i => i.status === 'manager_review' && i.escalation_status !== 'open');
 
   const getRiskColorClass = (risk) => {
     if (risk === 'High') return 'pill-dark-outline'; // red default
@@ -152,6 +132,7 @@ export default function ManagerDashboard() {
   return (
     <div style={{ padding: '32px 40px' }}>
       <div style={{ maxWidth: '1160px', margin: '0 auto' }}>
+        {errorMsg && <div className="alert error" role="alert">{errorMsg}</div>}
 
         {/* PAGE TITLE */}
         <div style={{ marginBottom: '32px' }}>
@@ -167,10 +148,11 @@ export default function ManagerDashboard() {
           </div>
           <h1 style={{ fontSize: '26px', color: '#fff', marginBottom: '4px', fontWeight: '900' }}>SafeGuard Pro</h1>
           <p style={{ fontSize: '13px', color: 'var(--sub)', fontWeight: '500' }}>OBS Pharma · Production Facility</p>
+          {escalatedCount > 0 && <button className="btn btn-danger" style={{ marginTop: '12px' }} onClick={() => navigate('/incidents?status=escalated')}><Siren size={15}/> {escalatedCount} escalated incident{escalatedCount === 1 ? '' : 's'} require resolution</button>}
         </div>
 
         {/* TIER 1: STAT CARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
+        <div className="dashboard-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
           <div className="glass-panel" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
             <Folder size={24} color="var(--amber)" fill="var(--amber)" style={{ marginBottom: '4px' }} />
             <div className="card-number">{openCount}</div>
@@ -194,7 +176,7 @@ export default function ManagerDashboard() {
         </div>
 
         {/* TIER 2: SPLIT LEADERBOARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+        <div className="dashboard-split" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
           
           {/* Safety Leaderboard */}
           <div className="glass-panel" style={{ padding: '28px' }}>
@@ -261,7 +243,7 @@ export default function ManagerDashboard() {
             </div>
           </div>
 
-          <table className="dash-table">
+          <div className="table-scroll"><table className="dash-table">
             <thead>
               <tr>
                 <th style={{ paddingLeft: '24px' }}>REF</th>
@@ -273,7 +255,7 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody>
-              {pendingActions.map((inc, i) => (
+              {pendingActions.map((inc) => (
                 <tr key={inc.id}>
                   <td style={{ color: 'var(--cyan)', fontWeight: '800', paddingLeft: '24px' }}>#{inc.reference_number}</td>
                   <td style={{ fontWeight: '600' }}>{inc.incident_type}</td>
@@ -300,7 +282,7 @@ export default function ManagerDashboard() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

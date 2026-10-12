@@ -1,0 +1,7 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+export default function TeamPage() {
+  const [users,setUsers]=useState([]),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+  useEffect(()=>{ supabase.from('profiles').select('id, full_name, employee_id, job_title, department, role').order('full_name').then(({data,error:e})=>{if(e)setError(e.message);else setUsers(data||[]);setLoading(false);}); },[]);
+  return <section className="page-shell"><div className="page-heading"><div><p className="eyebrow">ADMINISTRATION</p><h1>Team Directory</h1><p>People, roles, departments, and investigation responsibilities.</p></div></div>{error&&<div className="alert error">{error}</div>}<div className="data-panel"><div className="table-scroll"><table className="dash-table"><thead><tr><th>Name</th><th>Employee ID</th><th>Job title</th><th>Department</th><th>Role</th></tr></thead><tbody>{loading?<tr><td colSpan="5" className="empty-cell">Loading team…</td></tr>:users.map(u=><tr key={u.id}><td>{u.full_name}</td><td>{u.employee_id||'—'}</td><td>{u.job_title||'—'}</td><td>{u.department||'—'}</td><td><span className={`role-chip ${u.role}`}>{u.role}</span></td></tr>)}</tbody></table></div></div><p className="form-note">Role changes are intentionally not exposed in the browser. They should be handled through an audited administrator workflow.</p></section>;
+}

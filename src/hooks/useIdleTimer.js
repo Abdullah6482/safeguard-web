@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 export function useIdleTimer(timeoutMs = 900000, onTimeout) {
   const timerRef = useRef();
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (onTimeout) {
       timerRef.current = setTimeout(onTimeout, timeoutMs);
     }
-  };
+  }, [onTimeout, timeoutMs]);
 
   useEffect(() => {
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
@@ -19,5 +19,5 @@ export function useIdleTimer(timeoutMs = 900000, onTimeout) {
       if (timerRef.current) clearTimeout(timerRef.current);
       events.forEach(e => window.removeEventListener(e, resetTimer));
     };
-  }, [timeoutMs, onTimeout]);
+  }, [resetTimer]);
 }

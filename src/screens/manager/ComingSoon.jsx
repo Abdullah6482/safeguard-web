@@ -58,7 +58,7 @@ export default function ComingSoon() {
           onClick={() => navigate('/')}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '8px',
-            padding: '12px 24px', borderRadius: '10px', border: 'none',
+            padding: '12px 24px', borderRadius: '10px',
             backgroundColor: 'var(--surface)', color: 'var(--text)',
             fontSize: '14px', fontWeight: '700', cursor: 'pointer',
             border: '1px solid var(--border)',

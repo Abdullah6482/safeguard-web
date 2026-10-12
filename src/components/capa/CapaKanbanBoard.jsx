@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function CapaKanbanBoard({ columns = {}, onMoveCard, renderCard }) {
+export default function CapaKanbanBoard({ columns = {}, renderCard }) {
   const columnTitles = {
     pending: 'Pending',
     in_progress: 'In Progress',

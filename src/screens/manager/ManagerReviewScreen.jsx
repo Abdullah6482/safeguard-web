@@ -14,9 +14,11 @@ export default function ManagerReviewScreen() {
   const [managerNotes, setManagerNotes] = useState('');
   const [selectedDecision, setSelectedDecision] = useState('');
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [auditEvents, setAuditEvents] = useState([]);
 
   useEffect(() => {
     fetchIncidentDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function fetchIncidentDetail() {
@@ -38,6 +40,11 @@ export default function ManagerReviewScreen() {
         setErrorMsg('Failed to load incident detail. ' + error.message);
       } else {
         setIncident(inc);
+        setManagerNotes(inc.manager_notes || '');
+        const { data: audit } = await supabase.from('audit_events')
+          .select('id, event_type, from_status, to_status, details, created_at, actor:profiles!actor_id(full_name)')
+          .eq('incident_id', id).order('created_at', { ascending: false });
+        setAuditEvents(audit || []);
       }
     } catch (err) {
       console.error("Crash during fetch:", err);
@@ -55,28 +62,48 @@ export default function ManagerReviewScreen() {
     
     setSubmitting(true);
     const finalDecision = decision || selectedDecision;
+    if (['return', 'escalate'].includes(finalDecision) && managerNotes.trim().length < 10) {
+      setErrorMsg('Please provide at least 10 characters explaining this decision.');
+      setSubmitting(false);
+      return;
+    }
     
     try {
-      const updateData = {
-        status: finalDecision === 'approve' ? 'closed' : 
-               finalDecision === 'return' ? 'under_investigation' : 
-               finalDecision === 'escalate' ? 'manager_review' : finalDecision,
-        manager_notes: managerNotes,
-        manager_decision: finalDecision,
-        updated_at: new Date().toISOString(),
-        closed_at: finalDecision === 'approve' ? new Date().toISOString() : null
-      };
-
-      const { error } = await supabase
-        .from('incidents')
-        .update(updateData)
-        .eq('id', id);
+      const { error } = await supabase.rpc('manager_decide_incident', {
+        p_incident_id: id,
+        p_decision: finalDecision,
+        p_notes: managerNotes.trim(),
+        p_expected_updated_at: incident.updated_at,
+      });
 
       if (error) {
         setErrorMsg('Failed to update incident. ' + error.message);
       } else {
-        navigate('/');
+        navigate('/incidents');
       }
+    } catch (err) {
+      setErrorMsg('Unexpected error: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleEscalationResolution(resolution) {
+    if (managerNotes.trim().length < 10) {
+      setErrorMsg('Please provide at least 10 characters documenting the escalation resolution.');
+      return;
+    }
+    setSubmitting(true);
+    setErrorMsg('');
+    try {
+      const { error } = await supabase.rpc('resolve_escalation', {
+        p_incident_id: id,
+        p_resolution: resolution,
+        p_notes: managerNotes.trim(),
+        p_expected_updated_at: incident.updated_at,
+      });
+      if (error) setErrorMsg('Failed to resolve escalation. ' + error.message);
+      else navigate('/incidents?status=escalated');
     } catch (err) {
       setErrorMsg('Unexpected error: ' + err.message);
     } finally {
@@ -110,7 +137,7 @@ export default function ManagerReviewScreen() {
 
         <div style={{ marginBottom: '32px' }}>
           <p className="text-xs text-sub" style={{ marginBottom: '8px' }}>REFERENCE NUMBER</p>
-          <h2 style={{ fontSize: '24px', fontFamily: 'monospace', color: 'var(--amber)' }}>{incident.id}</h2>
+          <h2 style={{ fontSize: '24px', fontFamily: 'monospace', color: 'var(--amber)' }}>{incident.reference_number}</h2>
         </div>
 
         <div style={{ marginBottom: '32px' }}>
@@ -190,8 +217,15 @@ export default function ManagerReviewScreen() {
 
       {/* Main Content Area - Split View */}
       <main className="main-content" style={{ padding: '40px 60px' }}>
+        {incident.escalation_status === 'open' && <div className="glass-panel" role="status" style={{ marginBottom: '24px', padding: '20px', borderColor: 'var(--red)' }}>
+          <h2 style={{ color: 'var(--red)', marginBottom: '8px' }}>Escalated incident</h2>
+          <p className="text-sub">Escalated {incident.escalated_at ? new Date(incident.escalated_at).toLocaleString() : 'for executive attention'}. Record the authorized resolution below.</p>
+          {errorMsg && <div className="alert error" role="alert" style={{ marginTop: '12px' }}>{errorMsg}</div>}
+          <textarea className="input" style={{ minHeight: '90px', marginTop: '16px', resize: 'vertical' }} placeholder="Document the executive resolution and rationale…" value={managerNotes} onChange={e => setManagerNotes(e.target.value)} />
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}><button className="btn btn-success" disabled={submitting} onClick={() => handleEscalationResolution('approve')}>Approve & close</button><button className="btn btn-ghost" disabled={submitting} onClick={() => handleEscalationResolution('return')}>Return to investigator</button></div>
+        </div>}
         <header style={{ marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>{incident.incident_title}</h1>
+          <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>{incident.reference_number} · {incident.incident_type}</h1>
           <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
             <div className="badge" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
               <AlertTriangle size={14} color="var(--amber)" /> {incident.incident_type}
@@ -328,11 +362,11 @@ export default function ManagerReviewScreen() {
                 <p className="text-xs text-sub" style={{ marginBottom: '12px' }}>4-PILLAR RISK ASSESSMENT</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   {['People', 'Asset', 'Environment', 'Reputation'].map(pillar => {
-                    const val = incident[`pillar_${pillar.toLowerCase()}`] || 'Low';
+                    const val = incident[`pillar_${pillar.toLowerCase()}`];
                     return (
                       <div key={pillar} style={{ backgroundColor: 'var(--surface)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '13px', color: 'var(--sub)' }}>{pillar}</span>
-                        <span className={`badge ${val.toLowerCase()}`} style={{ fontSize: '11px', padding: '2px 8px' }}>{val}</span>
+                        <span className={`badge ${val ? val.toLowerCase() : 'unrated'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>{val || 'Not rated'}</span>
                       </div>
                     )
                   })}
@@ -389,7 +423,7 @@ export default function ManagerReviewScreen() {
         </div>
 
         {/* Manager Decision Section */}
-        {incident.status === 'manager_review' && (
+        {incident.status === 'manager_review' && incident.escalation_status !== 'open' && (
           <div style={{ marginTop: '40px', paddingTop: '40px', borderTop: '1px solid var(--border)' }}>
             <h2 style={{ fontSize: '16px', color: 'var(--text)', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Settings size={18} /> Manager Review & Decision
@@ -473,6 +507,8 @@ export default function ManagerReviewScreen() {
             </div>
           </div>
         )}
+
+        {auditEvents.length > 0 && <section className="audit-section"><h2>Decision history</h2>{auditEvents.map(event=><article key={event.id}><div><b>{event.event_type.replaceAll('_',' ')}</b><span>{event.actor?.full_name || 'System'} · {new Date(event.created_at).toLocaleString()}</span></div><p>{event.from_status || '—'} → {event.to_status || '—'}{event.details?.decision ? ` · ${event.details.decision}` : ''}</p></article>)}</section>}
       </main>
 
       {/* Full Screen Photo Modal */}
